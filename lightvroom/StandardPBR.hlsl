@@ -94,41 +94,22 @@ PS_INPUT VSMain(VS_INPUT input)
 // ------------------------------------------
 // ピクセルシェーダー (Pixel Shader)
 // ------------------------------------------
+// ------------------------------------------
+// ピクセルシェーダー (Pixel Shader)
+// ------------------------------------------
 float4 PSMain(PS_INPUT input) : SV_TARGET
 {
-    
-/*
     // --- 1. マテリアル情報の取得 ---
-    // ガンマ補正を解除してリニア空間に変換 (sRGB -> Linear)
-    float3 albedo = pow(txAlbedo.Sample(samLinear, input.TexCoord).rgb, 2.2);
-    
-    // 法線マップの計算 (Tangent Space -> World Space)
-    float3 normalMap = txNormal.Sample(samLinear, input.TexCoord).rgb * 2.0 - 1.0;
-    float3 N = normalize(normalMap.x * input.Tangent + normalMap.y * input.Binormal + normalMap.z * input.Normal);
-    
-    // ORMマップからの情報取得
-    float3 orm = txORM.Sample(samLinear, input.TexCoord).rgb;
-    float ao = orm.r;
-    float roughness = orm.g;
-    float metallic = orm.b;
-*/
-
-    // --- 1. マテリアル情報の取得 ---
-    // 一時的にテクスチャを使わず、固定の数値を使います。
-    // float3 albedo = pow(txAlbedo.Sample(samLinear, input.TexCoord).rgb, 2.2);
+    // C++側から送られてきた材質バッファ(cbPerMaterial)の値をそのまま使います
     float3 albedo = materialAlbedo.rgb;
     float roughness = materialRoughness;
     float metallic = materialMetallic;
     
-    // float3 normalMap = txNormal.Sample(samLinear, input.TexCoord).rgb * 2.0 - 1.0;
-    // float3 N = normalize(normalMap.x * input.Tangent + normalMap.y * input.Binormal + normalMap.z * input.Normal);
-    float3 N = normalize(input.Normal); // 頂点の法線をそのまま使う
+    // 頂点の法線をそのまま使う
+    float3 N = normalize(input.Normal);
     
-    // float3 orm = txORM.Sample(samLinear, input.TexCoord).rgb;
-    float ao = 1.0; // 環境光遮蔽（1.0で暗くしない）
-    float roughness = 0.3; // 粗さ（0.0でツルツル、1.0でザラザラ。0.3くらいがツヤのあるプラスチック風）
-    float metallic = 0.0; // 金属度（0.0は非金属、1.0は金属）
-    
+    // 環境光遮蔽（1.0で暗くしない）
+    float ao = 1.0; 
     
     // --- 2. ベクトルの準備 ---
     float3 V = normalize(cameraPos - input.WorldPos); // 視線ベクトル
