@@ -7,6 +7,7 @@
 #include "Mesh.h"
 #include "Camera.h"
 #include "Move.h"
+#include "ShadowMap.h"
 
 class Application
 {
@@ -34,6 +35,9 @@ private:
 
     std::unique_ptr<Mesh> m_cubeMesh;
     std::unique_ptr<Mesh> m_sphereMesh;
+    std::unique_ptr<Mesh> m_floorMesh; //’n–Ê—p
+
+    std::unique_ptr<ShadowMap> m_shadowMap; //
 
     Camera m_camera;
     Move m_move;

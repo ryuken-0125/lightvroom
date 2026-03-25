@@ -3,21 +3,19 @@
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <string>
-#include <DirectXMath.h> // 数学ライブラリ
+#include <DirectXMath.h>
 #include "ConstantBuffer.h"
 
-struct CBPerMaterial
-{
-    DirectX::XMFLOAT4 albedo;   // 基本色 (RGBA)
-    float roughness;            // 粗さ
-    float metallic;             // 金属度
-    DirectX::XMFLOAT2 pad;      // 16バイトアライメント用の調整
+struct CBPerMaterial {
+    DirectX::XMFLOAT4 albedo;
+    float roughness;
+    float metallic;
+    DirectX::XMFLOAT2 pad;
 };
 
-// HLSLの cbPerFrame と完全に一致させる構造体
-struct CBPerFrame
-{
+struct CBPerFrame {
     DirectX::XMMATRIX viewProjection;
+    DirectX::XMMATRIX lightViewProjection; // ★追加：太陽のカメラ
     DirectX::XMFLOAT3 cameraPos;
     float pad1;
     DirectX::XMFLOAT3 lightDir;
@@ -26,9 +24,7 @@ struct CBPerFrame
     float pad3;
 };
 
-// HLSLの cbPerObject と完全に一致させる構造体
-struct CBPerObject
-{
+struct CBPerObject {
     DirectX::XMMATRIX worldMatrix;
 };
 
@@ -38,30 +34,27 @@ public:
     ShaderManager();
     ~ShaderManager();
 
-    // シェーダーをファイルから読み込み、初期化する関数
-    bool Initialize(ID3D11Device* device, const std::wstring& filePath);
+    // ★修正：シャドウ用のファイルパスも受け取る
+    bool Initialize(ID3D11Device* device, const std::wstring& pbrFilePath, const std::wstring& shadowFilePath);
 
-    // 描画時にシェーダーとインプットレイアウトを適用する関数
-    void Bind(ID3D11DeviceContext* context);
+    // ★修正：描画パスの切り替え
+    void BindShadowPass(ID3D11DeviceContext* context);
+    void BindMainPass(ID3D11DeviceContext* context, ID3D11ShaderResourceView* shadowSRV);
 
     void UpdatePerFrame(ID3D11DeviceContext* context, const CBPerFrame& data);
     void UpdatePerObject(ID3D11DeviceContext* context, const CBPerObject& data);
-
     void UpdatePerMaterial(ID3D11DeviceContext* context, const CBPerMaterial& data);
 
 private:
-    // コンパイルエラーの内容をデバッグ出力するヘルパー関数
     void OutputErrorMessage(ID3DBlob* errorBlob);
 
-private:
-    // ComPtrを使用することで、解放忘れ（メモリリーク）を防ぎます
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader;
     Microsoft::WRL::ComPtr<ID3D11PixelShader>  m_pixelShader;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> m_shadowVertexShader; // ★追加
     Microsoft::WRL::ComPtr<ID3D11InputLayout>  m_inputLayout;
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_samplerClamp;       // ★追加：影のギザギザを減らすフィルター
 
-    ConstantBuffer<CBPerFrame> m_cbPerFrame;  // レジスタ b0 用
-    ConstantBuffer<CBPerObject> m_cbPerObject; // レジスタ b1 用
-
-    ConstantBuffer<CBPerMaterial> m_cbPerMaterial; // b2
-
+    ConstantBuffer<CBPerFrame> m_cbPerFrame;
+    ConstantBuffer<CBPerObject> m_cbPerObject;
+    ConstantBuffer<CBPerMaterial> m_cbPerMaterial;
 };

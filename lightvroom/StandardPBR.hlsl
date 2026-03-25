@@ -12,6 +12,7 @@
 cbuffer cbPerFrame : register(b0)
 {
     matrix viewProjection; // ビュー・プロジェクション行列
+    matrix lightViewProjection;
     float3 cameraPos; // カメラのワールド座標
     float pad1; // 16バイトアライメント用パディング
     float3 lightDir; // 平行光源の方向（ここでは1灯のみと仮定）
@@ -39,13 +40,14 @@ cbuffer cbPerMaterial : register(b2)
 Texture2D txAlbedo : register(t0); // アルベド（基本色）
 Texture2D txNormal : register(t1); // 法線マップ
 Texture2D txORM : register(t2); // R=Occlusion, G=Roughness, B=Metallic (最適化のためのパックテクスチャ)
-
+Texture2D txShadowMap : register(t0);
 // IBL用テクスチャ
 TextureCube txIrradiance : register(t3); // Diffuse IBL
 TextureCube txPrefilter : register(t4); // Specular IBL
 Texture2D txBRDF_LUT : register(t5); // BRDF積分マップ
 
 SamplerState samLinear : register(s0); // 通常のサンプラー
+SamplerState samClamp : register(s0);
 SamplerState samClamp : register(s1); // BRDF_LUT用のクランプサンプラー
 
 // ------------------------------------------
@@ -67,6 +69,7 @@ struct PS_INPUT
     float2 TexCoord : TEXCOORD;
     float3 Tangent : TANGENT;
     float3 Binormal : BINORMAL;
+    float4 LightSpacePos : TEXCOORD1; // 太陽から見た座標
 };
 
 // ------------------------------------------
@@ -88,12 +91,13 @@ PS_INPUT VSMain(VS_INPUT input)
     output.Tangent = normalize(mul(input.Tangent, (float3x3) worldMatrix));
     output.Binormal = cross(output.Normal, output.Tangent);
 
+    //太陽視点での座標を計算してPSへ送る
+    output.LightSpacePos = mul(worldPos, lightViewProjection);
     return output;
 }
 
-// ------------------------------------------
-// ピクセルシェーダー (Pixel Shader)
-// ------------------------------------------
+
+
 // ------------------------------------------
 // ピクセルシェーダー (Pixel Shader)
 // ------------------------------------------
@@ -141,9 +145,42 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     float3 kD = float3(1.0, 1.0, 1.0) - kS;
     kD *= 1.0 - metallic; // 金属はディフューズ光を持たない
 
-    // 直接光の最終的な出力
-    float3 Lo = (kD * albedo / PI + specular) * lightColor * NdotL;
+    
+    
+    // ==========================================
+    // ★追加：シャドウ（影）の計算
+    // ==========================================
+    float3 projCoords = input.LightSpacePos.xyz / input.LightSpacePos.w;
+    projCoords.x = projCoords.x * 0.5f + 0.5f;
+    projCoords.y = -projCoords.y * 0.5f + 0.5f;
 
+    float shadow = 1.0f; // 1.0が光、0.0が影
+    
+    // カメラの範囲内でのみ影を落とす
+    if (projCoords.x >= 0.0f && projCoords.x <= 1.0f &&
+        projCoords.y >= 0.0f && projCoords.y <= 1.0f &&
+        projCoords.z >= 0.0f && projCoords.z <= 1.0f)
+    {
+        shadow = 0.0f;
+        float bias = max(0.005f * (1.0f - dot(N, L)), 0.0005f); // 影のノイズ防止
+        float2 texelSize = 1.0f / 2048.0f; // 影の解像度
+        
+        // 3x3 PCF (影の縁を滑らかにぼかす処理)
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+        {
+            for (int y = -1; y <= 1; ++y)
+            {
+                float pcfDepth = txShadowMap.Sample(samClamp, projCoords.xy + float2(x, y) * texelSize).r;
+                shadow += (projCoords.z - bias > pcfDepth) ? 0.0f : 1.0f;
+            }
+        }
+        shadow /= 9.0f;
+    }
+    
+    // 直接光の最終的な出力
+    float3 Lo = (kD * albedo / PI + specular) * lightColor * NdotL * shadow;
+    
     // ==========================================
     // 間接光の計算 (IBL: Image Based Lighting)
     // ==========================================

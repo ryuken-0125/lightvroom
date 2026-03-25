@@ -12,6 +12,8 @@ public:
     void Clear(float r, float g, float b, float a);
     void Present();
 
+    void SetMainRenderTarget();
+
     // 他のクラス（ShaderManagerなど）からDeviceやContextを使えるようにする窓口
     ID3D11Device* GetDevice() const { return m_device.Get(); }
     ID3D11DeviceContext* GetContext() const { return m_context.Get(); }
@@ -23,4 +25,6 @@ private:
     Microsoft::WRL::ComPtr<IDXGISwapChain> m_swapChain;              // スワップチェーン（画面の切り替え役）
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTargetView; // 描画先（カラー）
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthStencilView; // 描画先（深度：3Dの前後関係用）
+
+    D3D11_VIEWPORT m_viewport; //メイン画面の解像度を保持
 };
