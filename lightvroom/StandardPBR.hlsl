@@ -88,6 +88,8 @@ PS_INPUT VSMain(VS_INPUT input)
 // ------------------------------------------
 float4 PSMain(PS_INPUT input) : SV_TARGET
 {
+    
+/*
     // --- 1. マテリアル情報の取得 ---
     // ガンマ補正を解除してリニア空間に変換 (sRGB -> Linear)
     float3 albedo = pow(txAlbedo.Sample(samLinear, input.TexCoord).rgb, 2.2);
@@ -101,7 +103,23 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     float ao = orm.r;
     float roughness = orm.g;
     float metallic = orm.b;
+*/
 
+    // --- 1. マテリアル情報の取得 ---
+    // 一時的にテクスチャを使わず、固定の数値を使います。
+    // float3 albedo = pow(txAlbedo.Sample(samLinear, input.TexCoord).rgb, 2.2);
+    float3 albedo = float3(0.2, 0.2, 0.2); // 色を指定（ここでは赤色）
+    
+    // float3 normalMap = txNormal.Sample(samLinear, input.TexCoord).rgb * 2.0 - 1.0;
+    // float3 N = normalize(normalMap.x * input.Tangent + normalMap.y * input.Binormal + normalMap.z * input.Normal);
+    float3 N = normalize(input.Normal); // 頂点の法線をそのまま使う
+    
+    // float3 orm = txORM.Sample(samLinear, input.TexCoord).rgb;
+    float ao = 1.0; // 環境光遮蔽（1.0で暗くしない）
+    float roughness = 0.3; // 粗さ（0.0でツルツル、1.0でザラザラ。0.3くらいがツヤのあるプラスチック風）
+    float metallic = 0.0; // 金属度（0.0は非金属、1.0は金属）
+    
+    
     // --- 2. ベクトルの準備 ---
     float3 V = normalize(cameraPos - input.WorldPos); // 視線ベクトル
     float NdotV = max(dot(N, V), 0.0001);
@@ -138,6 +156,8 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     // ==========================================
     // 間接光の計算 (IBL: Image Based Lighting)
     // ==========================================
+    
+/*
     // Diffuse IBL
     float3 irradiance = txIrradiance.Sample(samLinear, N).rgb;
     float3 diffuseIBL = irradiance * albedo;
@@ -150,7 +170,19 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     
     float2 envBRDF = txBRDF_LUT.Sample(samClamp, float2(NdotV, roughness)).rg;
     float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
+*/
 
+    // テクスチャがないと真っ黒になるため、仮の環境光を入れます。
+    
+    // float3 irradiance = txIrradiance.Sample(samLinear, N).rgb;
+    float3 irradiance = float3(0.05, 0.05, 0.05); // うっすらとした環境光
+    float3 diffuseIBL = irradiance * albedo;
+
+    // float3 prefilteredColor = txPrefilter.SampleLevel(samLinear, R, roughness * MAX_REFLECTION_LOD).rgb;
+    // float2 envBRDF = txBRDF_LUT.Sample(samClamp, float2(NdotV, roughness)).rg;
+    // float3 specularIBL = prefilteredColor * (F0 * envBRDF.x + envBRDF.y);
+    float3 specularIBL = float3(0.0, 0.0, 0.0); // 鏡面反射の環境光は一時オフ
+    
     // 環境光のF値を再計算
     float3 F_IBL = FresnelSchlickRoughness(NdotV, F0, roughness);
     float3 kS_IBL = F_IBL;

@@ -3,6 +3,26 @@
 #include <d3dcompiler.h>
 #include <wrl/client.h>
 #include <string>
+#include <DirectXMath.h> // 数学ライブラリ
+#include "ConstantBuffer.h"
+
+// HLSLの cbPerFrame と完全に一致させる構造体
+struct CBPerFrame
+{
+    DirectX::XMMATRIX viewProjection;
+    DirectX::XMFLOAT3 cameraPos;
+    float pad1;
+    DirectX::XMFLOAT3 lightDir;
+    float pad2;
+    DirectX::XMFLOAT3 lightColor;
+    float pad3;
+};
+
+// HLSLの cbPerObject と完全に一致させる構造体
+struct CBPerObject
+{
+    DirectX::XMMATRIX worldMatrix;
+};
 
 class ShaderManager
 {
@@ -16,6 +36,9 @@ public:
     // 描画時にシェーダーとインプットレイアウトを適用する関数
     void Bind(ID3D11DeviceContext* context);
 
+    void UpdatePerFrame(ID3D11DeviceContext* context, const CBPerFrame& data);
+    void UpdatePerObject(ID3D11DeviceContext* context, const CBPerObject& data);
+
 private:
     // コンパイルエラーの内容をデバッグ出力するヘルパー関数
     void OutputErrorMessage(ID3DBlob* errorBlob);
@@ -25,4 +48,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader;
     Microsoft::WRL::ComPtr<ID3D11PixelShader>  m_pixelShader;
     Microsoft::WRL::ComPtr<ID3D11InputLayout>  m_inputLayout;
+
+    ConstantBuffer<CBPerFrame> m_cbPerFrame;  // レジスタ b0 用
+    ConstantBuffer<CBPerObject> m_cbPerObject; // レジスタ b1 用
 };

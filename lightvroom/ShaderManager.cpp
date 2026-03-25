@@ -1,6 +1,9 @@
 #include "ShaderManager.h"
 #include <iostream>
 
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "d3dcompiler.lib") // これが D3DCompileFromFile の本体です
+
 ShaderManager::ShaderManager() {}
 ShaderManager::~ShaderManager() {}
 
@@ -93,6 +96,10 @@ bool ShaderManager::Initialize(ID3D11Device* device, const std::wstring& filePat
 
     if (FAILED(hr)) return false;
 
+    // 定数バッファの初期化
+    if (!m_cbPerFrame.Initialize(device)) return false;
+    if (!m_cbPerObject.Initialize(device)) return false;
+
     return true;
 }
 
@@ -108,11 +115,35 @@ void ShaderManager::OutputErrorMessage(ID3DBlob* errorBlob)
 {
     if (errorBlob)
     {
-        // エラー内容をコンソールに出力（OutputDebugStringなどに変更してもOKです）
-        std::cerr << "Shader Compile Error: " << (char*)errorBlob->GetBufferPointer() << std::endl;
+        // OutputDebugStringA を使うと、VSの出力ウィンドウに文字を出せます
+        OutputDebugStringA("=== Shader Compile Error ===\n");
+        OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+        OutputDebugStringA("\n============================\n");
     }
     else
     {
-        std::cerr << "Shader File not found." << std::endl;
+        OutputDebugStringA("Shader File not found. (ファイルが見つかりません)\n");
     }
+}
+
+void ShaderManager::UpdatePerFrame(ID3D11DeviceContext* context, const CBPerFrame& data)
+{
+    // データをコピー (注意: ここで行列は既に転置されている前提とします)
+    m_cbPerFrame.Data = data;
+    // GPUへ転送
+    m_cbPerFrame.ApplyChanges(context);
+
+    // HLSLの register(b0) にセット (VSとPSの両方で使うので両方にセット)
+    context->VSSetConstantBuffers(0, 1, m_cbPerFrame.Buffer.GetAddressOf());
+    context->PSSetConstantBuffers(0, 1, m_cbPerFrame.Buffer.GetAddressOf());
+}
+
+void ShaderManager::UpdatePerObject(ID3D11DeviceContext* context, const CBPerObject& data)
+{
+    m_cbPerObject.Data = data;
+    m_cbPerObject.ApplyChanges(context);
+
+    // HLSLの register(b1) にセット
+    context->VSSetConstantBuffers(1, 1, m_cbPerObject.Buffer.GetAddressOf());
+    context->PSSetConstantBuffers(1, 1, m_cbPerObject.Buffer.GetAddressOf());
 }

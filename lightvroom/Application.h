@@ -1,0 +1,33 @@
+#pragma once
+#include <Windows.h>
+#include <memory>
+#include "Graphics.h"
+#include "ShaderManager.h" 
+#include "Mesh.h"
+
+class Application
+{
+public:
+    Application();
+    ~Application();
+
+    // アプリケーションの初期化
+    bool Initialize(HINSTANCE hInstance, int nCmdShow, int width, int height);
+    // メインループの実行
+    void Run();
+
+private:
+    // ウィンドウからのメッセージ（閉じるボタンが押された等）を処理する関数
+    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+    HWND m_hwnd;
+    HINSTANCE m_hInstance;
+
+    // Graphicsクラスのインスタンスを保持（スマートポインタで自動メモリ管理）
+    std::unique_ptr<Graphics> m_graphics;
+
+    // ShaderManager のインスタンスを保持する変数
+    std::unique_ptr<ShaderManager> m_shaderManager; 
+
+    std::unique_ptr<Mesh> m_cubeMesh;
+};
