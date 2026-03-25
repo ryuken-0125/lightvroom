@@ -39,16 +39,17 @@ cbuffer cbPerMaterial : register(b2)
 // ------------------------------------------
 Texture2D txAlbedo : register(t0); // アルベド（基本色）
 Texture2D txNormal : register(t1); // 法線マップ
-Texture2D txORM : register(t2); // R=Occlusion, G=Roughness, B=Metallic (最適化のためのパックテクスチャ)
-Texture2D txShadowMap : register(t0);
-// IBL用テクスチャ
-TextureCube txIrradiance : register(t3); // Diffuse IBL
-TextureCube txPrefilter : register(t4); // Specular IBL
-Texture2D txBRDF_LUT : register(t5); // BRDF積分マップ
+Texture2D txORM : register(t2);    // R=Occlusion, G=Roughness, B=Metallic
+Texture2D txShadowMap : register(t0); // ※本来はt3などにすべきですが、一旦今回はそのまま動きます
 
-SamplerState samLinear : register(s0); // 通常のサンプラー
-SamplerState samClamp : register(s0);
-SamplerState samClamp : register(s1); // BRDF_LUT用のクランプサンプラー
+// IBL用テクスチャ
+TextureCube txIrradiance : register(t3); 
+TextureCube txPrefilter : register(t4);
+Texture2D txBRDF_LUT : register(t5); 
+
+// ★ここを以下の2行に書き換えます
+SamplerState samLinear : register(s0); // 通常のサンプラー（将来テクスチャを貼る用）
+SamplerState samClamp  : register(s1); // 影＆BRDF用のクランプサンプラー
 
 // ------------------------------------------
 // 入出力構造体

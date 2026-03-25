@@ -47,6 +47,9 @@
     <None Include="StandardPBR.hlsl">
       <Filter>ソース ファイル</Filter>
     </None>
+    <None Include="Shadow.hlsl">
+      <Filter>ソース ファイル</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ShaderManager.h">
@@ -73,10 +76,5 @@
     <ClInclude Include="ShadowMap.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <FxCompile Include="Shadow.hlsl">
-      <Filter>ソース ファイル</Filter>
-    </FxCompile>
   </ItemGroup>
 </Project>

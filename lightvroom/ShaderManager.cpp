@@ -65,7 +65,8 @@ void ShaderManager::BindShadowPass(ID3D11DeviceContext* context)
     context->PSSetShader(nullptr, nullptr, 0); // 色は塗らないのでPSはNull
 }
 
-// ★修正：パス2（本番描画用）のセット
+// パス2（本番描画用）のセット
+
 void ShaderManager::BindMainPass(ID3D11DeviceContext* context, ID3D11ShaderResourceView* shadowSRV)
 {
     context->IASetInputLayout(m_inputLayout.Get());
@@ -74,7 +75,9 @@ void ShaderManager::BindMainPass(ID3D11DeviceContext* context, ID3D11ShaderResou
 
     // シャドウマップの画像とサンプラーをシェーダーに渡す
     context->PSSetShaderResources(0, 1, &shadowSRV);
-    context->PSSetSamplers(0, 1, m_samplerClamp.GetAddressOf());
+
+    // ★ここを 1 に変更しました（HLSLの register(s1) と合わせるため）
+    context->PSSetSamplers(1, 1, m_samplerClamp.GetAddressOf());
 }
 
 void ShaderManager::OutputErrorMessage(ID3DBlob* errorBlob)
