@@ -21,6 +21,8 @@ public:
 
     // 立方体のデータを生成してGPUにバッファを作る関数
     bool CreateCube(ID3D11Device* device);
+    //球体を生成する関数
+    bool CreateSphere(ID3D11Device* device, float radius, UINT sliceCount, UINT stackCount);
 
     // 描画（Drawコール）を行う関数
     void Draw(ID3D11DeviceContext* context);

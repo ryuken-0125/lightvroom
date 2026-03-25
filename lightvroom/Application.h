@@ -5,6 +5,7 @@
 #include "ShaderManager.h" 
 #include "Mesh.h"
 
+
 class Application
 {
 public:
@@ -30,4 +31,6 @@ private:
     std::unique_ptr<ShaderManager> m_shaderManager; 
 
     std::unique_ptr<Mesh> m_cubeMesh;
+    std::unique_ptr<Mesh> m_sphereMesh;
+
 };

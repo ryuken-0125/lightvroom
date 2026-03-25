@@ -6,6 +6,14 @@
 #include <DirectXMath.h> // 数学ライブラリ
 #include "ConstantBuffer.h"
 
+struct CBPerMaterial
+{
+    DirectX::XMFLOAT4 albedo;   // 基本色 (RGBA)
+    float roughness;            // 粗さ
+    float metallic;             // 金属度
+    DirectX::XMFLOAT2 pad;      // 16バイトアライメント用の調整
+};
+
 // HLSLの cbPerFrame と完全に一致させる構造体
 struct CBPerFrame
 {
@@ -39,6 +47,8 @@ public:
     void UpdatePerFrame(ID3D11DeviceContext* context, const CBPerFrame& data);
     void UpdatePerObject(ID3D11DeviceContext* context, const CBPerObject& data);
 
+    void UpdatePerMaterial(ID3D11DeviceContext* context, const CBPerMaterial& data);
+
 private:
     // コンパイルエラーの内容をデバッグ出力するヘルパー関数
     void OutputErrorMessage(ID3DBlob* errorBlob);
@@ -51,4 +61,7 @@ private:
 
     ConstantBuffer<CBPerFrame> m_cbPerFrame;  // レジスタ b0 用
     ConstantBuffer<CBPerObject> m_cbPerObject; // レジスタ b1 用
+
+    ConstantBuffer<CBPerMaterial> m_cbPerMaterial; // b2
+
 };

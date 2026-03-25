@@ -99,6 +99,7 @@ bool ShaderManager::Initialize(ID3D11Device* device, const std::wstring& filePat
     // 定数バッファの初期化
     if (!m_cbPerFrame.Initialize(device)) return false;
     if (!m_cbPerObject.Initialize(device)) return false;
+    if (!m_cbPerMaterial.Initialize(device)) return false; 
 
     return true;
 }
@@ -146,4 +147,13 @@ void ShaderManager::UpdatePerObject(ID3D11DeviceContext* context, const CBPerObj
     // HLSLの register(b1) にセット
     context->VSSetConstantBuffers(1, 1, m_cbPerObject.Buffer.GetAddressOf());
     context->PSSetConstantBuffers(1, 1, m_cbPerObject.Buffer.GetAddressOf());
+}
+
+void ShaderManager::UpdatePerMaterial(ID3D11DeviceContext* context, const CBPerMaterial& data)
+{
+    m_cbPerMaterial.Data = data;
+    m_cbPerMaterial.ApplyChanges(context);
+
+    // HLSLの register(b2) にセット（ピクセルシェーダーでのみ使用します）
+    context->PSSetConstantBuffers(2, 1, m_cbPerMaterial.Buffer.GetAddressOf());
 }

@@ -1,5 +1,6 @@
 #include "Application.h"
 #include <DirectXMath.h>
+#include <chrono> //時間を正確に測るための標準ライブラリ
 
 Application::Application() : m_hwnd(nullptr), m_hInstance(nullptr) {}
 Application::~Application() {}
@@ -17,7 +18,7 @@ bool Application::Initialize(HINSTANCE hInstance, int nCmdShow, int width, int h
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
     if (!RegisterClass(&wc)) return false;
 
-    // 2. ウィンドウサイズの調整（枠線を省いた描画領域をきっちり指定サイズにするため）
+    // 2. ウィンドウサイズの調整
     RECT wr = { 0, 0, width, height };
     AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
 
@@ -40,14 +41,15 @@ bool Application::Initialize(HINSTANCE hInstance, int nCmdShow, int width, int h
         return false;
     }
 
-    // 5. シェーダーの初期化（コンパイル）
+    // 5. シェーダーの初期化
     m_shaderManager = std::make_unique<ShaderManager>();
     if (!m_shaderManager->Initialize(m_graphics->GetDevice(), L"StandardPBR.hlsl"))
     {
-        MessageBox(nullptr, L"シェーダーのコンパイルに失敗しました。Visual Studioの出力ウィンドウを確認してください。", L"Error", MB_OK);
+        MessageBox(nullptr, L"シェーダーのコンパイルに失敗しました。", L"Error", MB_OK);
         return false;
     }
 
+    // 6. メッシュ（立方体）の初期化
     m_cubeMesh = std::make_unique<Mesh>();
     if (!m_cubeMesh->CreateCube(m_graphics->GetDevice()))
     {
@@ -55,15 +57,12 @@ bool Application::Initialize(HINSTANCE hInstance, int nCmdShow, int width, int h
         return false;
     }
 
-    // --------------------------------------------------------------------
-
-    // Application.cpp の Run 関数の中（DrawコールのTODOと書いていた場所）を書き換え
-    // TODO: 次のステップで、ここに3Dモデルの「頂点バッファ」をセットしてDrawコールを呼びます
-    // ↓ これを以下の1行に書き換える
-    m_cubeMesh->Draw(m_graphics->GetContext());
-
-    // TODO: ここで m_shaderManager = std::make_unique<ShaderManager>();
-    // TODO: m_shaderManager->Initialize(m_graphics->GetDevice(), L"StandardPBR.hlsl");
+    // 球体の初期化（半径1.0、経度30分割、緯度30分割で滑らかに）
+    m_sphereMesh = std::make_unique<Mesh>();
+    if (!m_sphereMesh->CreateSphere(m_graphics->GetDevice(), 1.0f, 30, 30))
+    {
+        return false;
+    }
 
     return true;
 }
@@ -71,6 +70,9 @@ bool Application::Initialize(HINSTANCE hInstance, int nCmdShow, int width, int h
 void Application::Run()
 {
     MSG msg = { };
+
+    // ★追加: アプリケーション開始時の時間を記録（基準点）
+    auto startTime = std::chrono::high_resolution_clock::now();
 
     while (true)
     {
@@ -83,59 +85,90 @@ void Application::Run()
         else
         {
             m_graphics->Clear(0.0f, 0.2f, 0.4f, 1.0f);
-
-            // シェーダーをパイプラインにセット
             m_shaderManager->Bind(m_graphics->GetContext());
 
-            // ==========================================
-            // 1. カメラとライトの情報 (Frameデータ) の準備
-            // ==========================================
             using namespace DirectX;
 
-            // カメラの位置と向き
-            XMVECTOR camPos = XMVectorSet(0.0f, 2.0f, -5.0f, 1.0f); // 手前やや上から
-            XMVECTOR camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);  // 原点を見る
-            XMVECTOR camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);  // Y軸が上
+            // ★追加: 現在の時間を取得し、開始時からの経過時間（秒）を計算
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            float elapsedTime = std::chrono::duration<float>(currentTime - startTime).count();
+
+            // 1. カメラの設定
+            XMVECTOR camPos = XMVectorSet(0.0f, 2.0f, -6.0f, 1.0f);
+            XMVECTOR camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+            XMVECTOR camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 
             XMMATRIX view = XMMatrixLookAtLH(camPos, camTarget, camUp);
-            // プロジェクション（遠近法）の設定: 視野角45度, アスペクト比 16:9, 描画範囲 0.1 ～ 100.0
             XMMATRIX proj = XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
 
             CBPerFrame frameData;
-            // 【超重要】行列をシェーダーに送る前に必ず転置（Transpose）する！
             frameData.viewProjection = XMMatrixTranspose(view * proj);
             XMStoreFloat3(&frameData.cameraPos, camPos);
 
-            // ライトの設定（斜め上から照らす白い光）
-            frameData.lightDir = XMFLOAT3(0.5f, -1.0f, 0.5f);
-            frameData.lightColor = XMFLOAT3(1.0f, 1.0f, 1.0f);
+            // ==========================================
+            // ★追加: 太陽（平行光源）を動かす処理★
+            // ==========================================
+            // 経過時間を使って太陽の回転角度を計算（1.0fを大きくすると早く回ります）
+            float sunAngle = elapsedTime * 0.5f;
 
-            // ShaderManager経由でGPUへ転送
+            // 太陽の向き（ベクトル）を計算
+            // XとZに cos/sin を使うことで、物体を囲むように円を描いて回ります
+            // Yを -1.0f に固定することで、常に斜め上から見下ろすように光が当たります
+            XMVECTOR sunDir = XMVectorSet(cosf(sunAngle), -1.0f, sinf(sunAngle), 0.0f);
+
+            // ベクトルの長さを必ず 1.0 (正規化) にしてシェーダーに送る必要があります
+            sunDir = XMVector3Normalize(sunDir);
+            XMStoreFloat3(&frameData.lightDir, sunDir);
+
+            // 固定の太陽の光量（強さと色）
+            // PBRでは強めに設定することが多いので、真っ白な強い光（RGBそれぞれ3.0）を設定します
+            frameData.lightColor = XMFLOAT3(3.0f, 3.0f, 3.0f);
+
             m_shaderManager->UpdatePerFrame(m_graphics->GetContext(), frameData);
 
+            // ==========================================
+            // 描画 1：左側の「赤いプラスチックの立方体」
+            // ==========================================
+            CBPerObject cubeObj;
+            // X軸方向に -1.5 (左) へ移動
+            cubeObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(-1.5f, 0.0f, 0.0f));
+            m_shaderManager->UpdatePerObject(m_graphics->GetContext(), cubeObj);
+
+            CBPerMaterial cubeMat;
+            cubeMat.albedo = XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f); // 赤色
+            cubeMat.roughness = 0.3f; // 少しツヤのあるプラスチック風
+            cubeMat.metallic = 0.0f; // 非金属
+            m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), cubeMat);
+
+            m_cubeMesh->Draw(m_graphics->GetContext());
 
             // ==========================================
-            // 2. 描画する物体の情報 (Objectデータ) の準備
+            // 描画 2：右側の「鉄の球体」
             // ==========================================
-            CBPerObject objData;
-            // 物体を原点にそのまま配置する行列（単位行列）を作成し、転置する
-            objData.worldMatrix = XMMatrixTranspose(XMMatrixIdentity());
+            CBPerObject sphereObj;
+            // X軸方向に +1.5 (右) へ移動
+            sphereObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(1.5f, 0.0f, 0.0f));
+            m_shaderManager->UpdatePerObject(m_graphics->GetContext(), sphereObj);
 
-            m_shaderManager->UpdatePerObject(m_graphics->GetContext(), objData);
+            CBPerMaterial sphereMat;
+            sphereMat.albedo = XMFLOAT4(0.56f, 0.57f, 0.58f, 1.0f); // 鉄の基本反射率（現実の近似値）
+            sphereMat.roughness = 0.15f; // やや磨かれた金属
+            sphereMat.metallic = 1.0f;  // 完全な金属
+            m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), sphereMat);
 
-            // TODO: 次のステップで、ここに3Dモデルの「頂点バッファ」をセットしてDrawコールを呼びます
+            m_sphereMesh->Draw(m_graphics->GetContext());
 
+            // 画面のフリップ
             m_graphics->Present();
         }
     }
 }
 
-
 LRESULT CALLBACK Application::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
-    case WM_DESTROY: // ウィンドウの「×」ボタンが押されたとき
+    case WM_DESTROY:
         PostQuitMessage(0);
         return 0;
     }

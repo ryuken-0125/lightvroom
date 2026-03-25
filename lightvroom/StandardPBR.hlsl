@@ -25,6 +25,14 @@ cbuffer cbPerObject : register(b1)
     matrix worldMatrix; // モデルのワールド行列
 }
 
+cbuffer cbPerMaterial : register(b2)
+{
+    float4 materialAlbedo;
+    float materialRoughness;
+    float materialMetallic;
+    float2 pad4;
+}
+
 // ------------------------------------------
 // テクスチャとサンプラー (Resources)
 // ------------------------------------------
@@ -108,7 +116,9 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
     // --- 1. マテリアル情報の取得 ---
     // 一時的にテクスチャを使わず、固定の数値を使います。
     // float3 albedo = pow(txAlbedo.Sample(samLinear, input.TexCoord).rgb, 2.2);
-    float3 albedo = float3(0.2, 0.2, 0.2); // 色を指定（ここでは赤色）
+    float3 albedo = materialAlbedo.rgb;
+    float roughness = materialRoughness;
+    float metallic = materialMetallic;
     
     // float3 normalMap = txNormal.Sample(samLinear, input.TexCoord).rgb * 2.0 - 1.0;
     // float3 N = normalize(normalMap.x * input.Tangent + normalMap.y * input.Binormal + normalMap.z * input.Normal);
