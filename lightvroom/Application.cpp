@@ -64,6 +64,13 @@ bool Application::Initialize(HINSTANCE hInstance, int nCmdShow, int width, int h
         return false;
     }
 
+    // カメラとプレイヤーの初期設定
+    m_camera.SetPosition(0.0f, 2.0f, -6.0f);
+    m_camera.SetProjection(DirectX::XMConvertToRadians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
+
+    // プレイヤー(立方体)の初期位置を左側にセット
+    m_playerPos = DirectX::XMFLOAT3(-1.5f, 0.0f, 0.0f);
+
     return true;
 }
 
@@ -71,8 +78,9 @@ void Application::Run()
 {
     MSG msg = { };
 
-    // ★追加: アプリケーション開始時の時間を記録（基準点）
+    // 時間計測の準備
     auto startTime = std::chrono::high_resolution_clock::now();
+    auto prevTime = startTime; // ★追加：前回のフレームの時間を記録
 
     while (true)
     {
@@ -84,85 +92,77 @@ void Application::Run()
         }
         else
         {
+            // 時間の計算（前回の描画から何秒経ったか）
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            float deltaTime = std::chrono::duration<float>(currentTime - prevTime).count();
+            prevTime = currentTime;
+
+            // プログラム起動からの累計時間（太陽を回す用）
+            float elapsedTime = std::chrono::duration<float>(currentTime - startTime).count();
+
+            // --- 入力の処理と更新 ---
+            // マウスの位置を特定するためにウィンドウハンドル(m_hwnd)を渡します
+            m_move.ControlCamera(m_camera, deltaTime, m_hwnd);
+            m_move.ControlPlayer(m_playerPos, deltaTime);
+
+
+            // --- 描画処理 ---
             m_graphics->Clear(0.0f, 0.2f, 0.4f, 1.0f);
             m_shaderManager->Bind(m_graphics->GetContext());
 
             using namespace DirectX;
 
-            // ★追加: 現在の時間を取得し、開始時からの経過時間（秒）を計算
-            auto currentTime = std::chrono::high_resolution_clock::now();
-            float elapsedTime = std::chrono::duration<float>(currentTime - startTime).count();
-
-            // 1. カメラの設定
-            XMVECTOR camPos = XMVectorSet(0.0f, 2.0f, -6.0f, 1.0f);
-            XMVECTOR camTarget = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
-            XMVECTOR camUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-            XMMATRIX view = XMMatrixLookAtLH(camPos, camTarget, camUp);
-            XMMATRIX proj = XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), 1280.0f / 720.0f, 0.1f, 100.0f);
-
+            // 1. フレームデータ（カメラとライト）の送信
             CBPerFrame frameData;
-            frameData.viewProjection = XMMatrixTranspose(view * proj);
-            XMStoreFloat3(&frameData.cameraPos, camPos);
+            // 固定の行列ではなく、Cameraクラスから最新の行列をもらいます
+            frameData.viewProjection = XMMatrixTranspose(m_camera.GetViewMatrix() * m_camera.GetProjectionMatrix());
+            frameData.cameraPos = m_camera.GetPosition();
 
-            // ==========================================
-            // ★追加: 太陽（平行光源）を動かす処理★
-            // ==========================================
-            // 経過時間を使って太陽の回転角度を計算（1.0fを大きくすると早く回ります）
+            // 太陽の回転
             float sunAngle = elapsedTime * 0.5f;
-
-            // 太陽の向き（ベクトル）を計算
-            // XとZに cos/sin を使うことで、物体を囲むように円を描いて回ります
-            // Yを -1.0f に固定することで、常に斜め上から見下ろすように光が当たります
             XMVECTOR sunDir = XMVectorSet(cosf(sunAngle), -1.0f, sinf(sunAngle), 0.0f);
-
-            // ベクトルの長さを必ず 1.0 (正規化) にしてシェーダーに送る必要があります
             sunDir = XMVector3Normalize(sunDir);
             XMStoreFloat3(&frameData.lightDir, sunDir);
-
-            // 固定の太陽の光量（強さと色）
-            // PBRでは強めに設定することが多いので、真っ白な強い光（RGBそれぞれ3.0）を設定します
             frameData.lightColor = XMFLOAT3(3.0f, 3.0f, 3.0f);
 
             m_shaderManager->UpdatePerFrame(m_graphics->GetContext(), frameData);
 
             // ==========================================
-            // 描画 1：左側の「赤いプラスチックの立方体」
+            // 描画 1：プレイヤー（赤い立方体）
             // ==========================================
             CBPerObject cubeObj;
-            // X軸方向に -1.5 (左) へ移動
-            cubeObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(-1.5f, 0.0f, 0.0f));
+            // 固定位置ではなく、m_playerPos の座標を使って移動させます
+            cubeObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(m_playerPos.x, m_playerPos.y, m_playerPos.z));
             m_shaderManager->UpdatePerObject(m_graphics->GetContext(), cubeObj);
 
             CBPerMaterial cubeMat;
-            cubeMat.albedo = XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f); // 赤色
-            cubeMat.roughness = 0.3f; // 少しツヤのあるプラスチック風
-            cubeMat.metallic = 0.0f; // 非金属
+            cubeMat.albedo = XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f);
+            cubeMat.roughness = 0.3f;
+            cubeMat.metallic = 0.0f;
             m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), cubeMat);
 
             m_cubeMesh->Draw(m_graphics->GetContext());
 
             // ==========================================
-            // 描画 2：右側の「鉄の球体」
+            // 描画 2：鉄の球体（位置は固定のまま）
             // ==========================================
             CBPerObject sphereObj;
-            // X軸方向に +1.5 (右) へ移動
             sphereObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(1.5f, 0.0f, 0.0f));
             m_shaderManager->UpdatePerObject(m_graphics->GetContext(), sphereObj);
 
             CBPerMaterial sphereMat;
-            sphereMat.albedo = XMFLOAT4(0.56f, 0.57f, 0.58f, 1.0f); // 鉄の基本反射率（現実の近似値）
-            sphereMat.roughness = 0.15f; // やや磨かれた金属
-            sphereMat.metallic = 1.0f;  // 完全な金属
+            sphereMat.albedo = XMFLOAT4(0.56f, 0.57f, 0.58f, 1.0f);
+            sphereMat.roughness = 0.15f;
+            sphereMat.metallic = 1.0f;
             m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), sphereMat);
 
             m_sphereMesh->Draw(m_graphics->GetContext());
 
-            // 画面のフリップ
             m_graphics->Present();
         }
     }
 }
+
 
 LRESULT CALLBACK Application::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {

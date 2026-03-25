@@ -1,10 +1,12 @@
 #pragma once
 #include <Windows.h>
 #include <memory>
+
 #include "Graphics.h"
 #include "ShaderManager.h" 
 #include "Mesh.h"
-
+#include "Camera.h"
+#include "Move.h"
 
 class Application
 {
@@ -32,5 +34,9 @@ private:
 
     std::unique_ptr<Mesh> m_cubeMesh;
     std::unique_ptr<Mesh> m_sphereMesh;
+
+    Camera m_camera;
+    Move m_move;
+    DirectX::XMFLOAT3 m_playerPos; // プレイヤー（立方体）の現在位置
 
 };
