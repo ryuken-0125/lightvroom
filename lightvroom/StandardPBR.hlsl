@@ -161,20 +161,27 @@ float4 PSMain(PS_INPUT input) : SV_TARGET
         return float4(albedo * emissive, 1.0f);
     }
 
-    // 2. 共通ベクトルの準備
+// 2. 共通ベクトルの準備
     float3 N = normalize(input.Normal);
     float3 V = normalize(cameraPos - input.WorldPos);
     float3 F0 = float3(0.04, 0.04, 0.04);
     F0 = lerp(F0, albedo, metallic);
 
-    // 3. 太陽のライティングと影
+    // ========================================================
+    //太陽のライティングと影
+    // ========================================================
     float3 L_sun = normalize(-sunDir);
-    float shadowVal = CalculateShadow(input.LightSpacePos, N, L_sun);
-    float3 sunLighting = CalculatePBR(N, V, L_sun, albedo, roughness, metallic, F0, sunColor) * shadowVal;
+    // any(sunColor) = 太陽が光っている時だけ CalculateShadow を実行する（重い処理のスキップ）
+    float sunShadow = any(sunColor) ? CalculateShadow(input.LightSpacePos, N, L_sun) : 1.0f;
+    float3 sunLighting = CalculatePBR(N, V, L_sun, albedo, roughness, metallic, F0, sunColor) * sunShadow;
 
-    // 4. 月のライティング (月は影を作らない設定)
+    // ========================================================
+    // 月のライティングと影
+    // ========================================================
     float3 L_moon = normalize(-moonDir);
-    float3 moonLighting = CalculatePBR(N, V, L_moon, albedo, roughness, metallic, F0, moonColor);
+    // 月が光っている時だけ影を計算し、月の光に掛け合わせる
+    float moonShadow = any(moonColor) ? CalculateShadow(input.LightSpacePos, N, L_moon) : 1.0f;
+    float3 moonLighting = CalculatePBR(N, V, L_moon, albedo, roughness, metallic, F0, moonColor) * moonShadow;
 
     // 5. 環境光（空の色を反映）
     float3 ambient = albedo * skyColor.rgb * 0.1f;

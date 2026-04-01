@@ -3,13 +3,26 @@ cbuffer cbPerFrame : register(b0)
 {
     matrix viewProjection;
     matrix lightViewProjection;
+    
     float3 cameraPos;
     float pad1;
     float3 lightDir;
     float pad2;
     float3 lightColor;
     float pad3;
+    
+    float3 sunDir;
+    float pad4;
+    float3 sunColor;
+    float pad5;
+    float3 moonDir;
+    float pad6;
+    float3 moonColor;
+    float pad7;
+    
+    float4 skyColor;
 }
+
 cbuffer cbPerObject : register(b1)
 {
     matrix worldMatrix;
