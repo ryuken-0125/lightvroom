@@ -6,26 +6,38 @@
 #include <DirectXMath.h>
 #include "ConstantBuffer.h"
 
-struct CBPerMaterial {
-    DirectX::XMFLOAT4 albedo;
-    float roughness;
-    float metallic;
-    DirectX::XMFLOAT2 pad;
-};
-
-struct CBPerFrame {
+struct CBPerFrame
+{
     DirectX::XMMATRIX viewProjection;
-    DirectX::XMMATRIX lightViewProjection; // ★追加：太陽のカメラ
-    DirectX::XMFLOAT3 cameraPos;
-    float pad1;
-    DirectX::XMFLOAT3 lightDir;
-    float pad2;
-    DirectX::XMFLOAT3 lightColor;
-    float pad3;
+    DirectX::XMMATRIX lightViewProjection;
+    DirectX::XMFLOAT3 cameraPos;    float pad1;
+
+    // 太陽のデータ
+    DirectX::XMFLOAT3 lightDir;     float pad2;
+    DirectX::XMFLOAT3 lightColor;   float pad3;
+
+    // 月のデータ
+    DirectX::XMFLOAT3 sunDir;       float pad4;
+    DirectX::XMFLOAT3 sunColor;     float pad5; 
+
+   
+    DirectX::XMFLOAT3 moonDir;      float pad6; 
+    DirectX::XMFLOAT3 moonColor;    float pad7; 
+
+    // 空の色
+    DirectX::XMFLOAT4 skyColor;  
 };
 
 struct CBPerObject {
     DirectX::XMMATRIX worldMatrix;
+};
+
+struct CBPerMaterial {
+    DirectX::XMFLOAT4 albedo;
+    float roughness;
+    float metallic;
+    float emissive; // 1.0 で物体自体が光源のように光る
+    float pad;
 };
 
 class ShaderManager

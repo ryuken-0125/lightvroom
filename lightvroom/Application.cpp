@@ -59,6 +59,9 @@ void Application::Run()
     auto startTime = std::chrono::high_resolution_clock::now();
     auto prevTime = startTime;
 
+    const float DAY_DURATION = 30.0f;
+
+
     while (true)
     {
         if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
@@ -77,46 +80,93 @@ void Application::Run()
             m_move.ControlCamera(m_camera, deltaTime, m_hwnd);
             m_move.ControlPlayer(m_playerPos, deltaTime);
 
+            float dayTime = fmodf(elapsedTime / DAY_DURATION, 1.0f);
+            float angle = dayTime * DirectX::XM_2PI;
+
             using namespace DirectX;
 
-            // 太陽の回転と行列の計算
+            // --- 太陽と月の位置計算 (西から東へ) ---
+            // 太陽
             float sunAngle = elapsedTime * 0.5f;
-            XMVECTOR sunDir = XMVectorSet(cosf(sunAngle), -1.5f, sinf(sunAngle), 0.0f);
-            sunDir = XMVector3Normalize(sunDir);
+            XMVECTOR sunPos = XMVectorSet(cosf(sunAngle) * 20.0f, sinf(sunAngle) * 20.0f, 0.0f, 0.0f);
+            XMVECTOR sunDir = XMVector3Normalize(-sunPos);
 
-            // ★追加：太陽から見たカメラを作る（原点から十分離れた位置から中心を見る）
-            XMVECTOR lightPos = sunDir * -20.0f;
-            XMMATRIX lightView = XMMatrixLookAtLH(lightPos, XMVectorZero(), XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-            XMMATRIX lightProj = XMMatrixOrthographicLH(20.0f, 20.0f, 0.1f, 100.0f);
+            // 月（太陽の正反対に配置）
+            XMVECTOR moonPos = -sunPos;
+            XMVECTOR moonDir = XMVector3Normalize(-moonPos);
 
+
+            // --- 時間帯に応じた色の変化 ---
+            XMFLOAT4 currentSkyColor;
+            XMFLOAT3 currentSunColor;
+
+            float sunIntensity = max(0.0f, sinf(angle)); // 太陽が上にある時だけ強く
+
+            if (sunIntensity > 0.0f) {
+                // 昼：青空
+                currentSkyColor = XMFLOAT4(0.2f, 0.4f, 0.8f, 1.0f);
+                currentSunColor = XMFLOAT3(5.0f * sunIntensity, 4.5f * sunIntensity, 4.0f * sunIntensity);
+            }
+            else {
+                // 夜：濃紺
+                currentSkyColor = XMFLOAT4(0.02f, 0.02f, 0.1f, 1.0f);
+                currentSunColor = XMFLOAT3(0, 0, 0);
+            }
+
+            // 月の光（常に一定の淡い青白さ）
+            float moonIntensity = max(0.0f, sinf(angle + XM_PI));
+            XMFLOAT3 currentMoonColor = XMFLOAT3(0.5f * moonIntensity, 0.6f * moonIntensity, 0.8f * moonIntensity);
+
+            // --- フレームデータの転送 ---
             CBPerFrame frameData;
             frameData.viewProjection = XMMatrixTranspose(m_camera.GetViewMatrix() * m_camera.GetProjectionMatrix());
-            frameData.lightViewProjection = XMMatrixTranspose(lightView * lightProj); // ★追加
-            frameData.cameraPos = m_camera.GetPosition();
-            XMStoreFloat3(&frameData.lightDir, sunDir);
-            frameData.lightColor = XMFLOAT3(4.0f, 4.0f, 4.0f);
+            XMStoreFloat3(&frameData.sunDir, sunDir);
+            frameData.sunColor = currentSunColor;
+            XMStoreFloat3(&frameData.moonDir, moonDir);
+            frameData.moonColor = currentMoonColor;
+            frameData.skyColor = currentSkyColor;
+            // 影は太陽のみから計算（太陽が沈んでいる時は計算をスキップするロジックが必要）
+            // ...
 
+            // --- 描画パス ---
+            m_graphics->Clear(currentSkyColor.x, currentSkyColor.y, currentSkyColor.z, 1.0f);
+
+            // 1. 太陽自体を描画
+            CBPerObject sunObj;
+            sunObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslationFromVector(sunPos));
+            m_shaderManager->UpdatePerObject(m_graphics->GetContext(), sunObj); // ★修正
+            CBPerMaterial sunMat = { XMFLOAT4(1.0f, 1.0f, 0.8f, 1.0f), 0.0f, 0.0f, 10.0f, 0.0f };
+            m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), sunMat); // ★修正
+            m_sphereMesh->Draw(m_graphics->GetContext()); // ★修正
+
+            // 2. 月自体を描画
+            CBPerObject moonObj;
+            moonObj.worldMatrix = XMMatrixTranspose(XMMatrixScaling(0.5f, 0.5f, 0.5f) * XMMatrixTranslationFromVector(moonPos));
+            m_shaderManager->UpdatePerObject(m_graphics->GetContext(), moonObj); // ★修正
+            CBPerMaterial moonMat = { XMFLOAT4(0.8f, 0.8f, 1.0f, 1.0f), 0.0f, 0.0f, 2.0f, 0.0f };
+            m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), moonMat); // ★修正
+            m_sphereMesh->Draw(m_graphics->GetContext()); // ★修正
 
             // -----------------------------------------------------------
             // C++11のラムダ式を使って「3つの物体を描画する処理」をまとめます
             // -----------------------------------------------------------
             auto DrawAllObjects = [&](bool isShadowPass) {
-                // 1. 地面 (Y軸に薄く、XZ軸に広く引き伸ばす)
+                // 1. 地面
                 CBPerObject floorObj;
                 floorObj.worldMatrix = XMMatrixTranspose(XMMatrixScaling(10.0f, 0.1f, 10.0f) * XMMatrixTranslation(0.0f, -1.0f, 0.0f));
                 m_shaderManager->UpdatePerObject(m_graphics->GetContext(), floorObj);
                 if (!isShadowPass) {
-                    CBPerMaterial floorMat = { XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f), 0.9f, 0.0f, {0,0} };
+                    CBPerMaterial floorMat = { XMFLOAT4(0.8f, 0.8f, 0.8f, 1.0f), 0.9f, 0.0f, 0.0f, 0.0f };
                     m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), floorMat);
                 }
                 m_floorMesh->Draw(m_graphics->GetContext());
 
-                // 2. 赤い立方体 (プレイヤー)
+                // 2. 赤い立方体
                 CBPerObject cubeObj;
                 cubeObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(m_playerPos.x, m_playerPos.y, m_playerPos.z));
                 m_shaderManager->UpdatePerObject(m_graphics->GetContext(), cubeObj);
                 if (!isShadowPass) {
-                    CBPerMaterial cubeMat = { XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f), 0.3f, 0.0f, {0,0} };
+                    CBPerMaterial cubeMat = { XMFLOAT4(1.0f, 0.2f, 0.2f, 1.0f), 0.3f, 0.0f, 0.0f, 0.0f };
                     m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), cubeMat);
                 }
                 m_cubeMesh->Draw(m_graphics->GetContext());
@@ -126,13 +176,11 @@ void Application::Run()
                 sphereObj.worldMatrix = XMMatrixTranspose(XMMatrixTranslation(1.5f, 0.0f, 0.0f));
                 m_shaderManager->UpdatePerObject(m_graphics->GetContext(), sphereObj);
                 if (!isShadowPass) {
-                    CBPerMaterial sphereMat = { XMFLOAT4(0.56f, 0.57f, 0.58f, 1.0f), 0.15f, 1.0f, {0,0} };
+                    CBPerMaterial sphereMat = { XMFLOAT4(0.56f, 0.57f, 0.58f, 1.0f), 0.15f, 1.0f, 0.0f, 0.0f };
                     m_shaderManager->UpdatePerMaterial(m_graphics->GetContext(), sphereMat);
                 }
                 m_sphereMesh->Draw(m_graphics->GetContext());
                 };
-
-
             // ==========================================
             // パス1：シャドウマップ（影）の描画
             // ==========================================
