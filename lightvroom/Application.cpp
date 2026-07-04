@@ -56,7 +56,7 @@ void Application::Run()
     auto startTime = std::chrono::high_resolution_clock::now();
     auto prevTime = startTime;
 
-    const float DAY_DURATION = 30.0f; // 1“ú‚Ì’·‚³i30•bj
+    const float DAY_DURATION = 200000.0f; // 1“ú‚Ì’·‚³i30•bj
 
     while (true)
     {
@@ -83,7 +83,7 @@ void Application::Run()
             using namespace DirectX;
 
             // ‘¾—z‚ÌˆÊ’u (XY•½–Êã‚Å‰~‚ğ•`‚­)
-            XMVECTOR sunPos = XMVectorSet(cosf(angle) * 25.0f, sinf(angle) * 25.0f, 0.0f, 0.0f);
+            XMVECTOR sunPos = XMVectorSet(cosf(angle) * 25.0f, sinf(angle) * 25.0f, 30.0f, 0.0f);
             XMVECTOR sunDir = XMVector3Normalize(-sunPos); // •¨‘Ì‚ÖŒü‚©‚¤•ûŒü
 
             // Œ‚ÌˆÊ’u (‘¾—z‚Ì³”½‘Î)

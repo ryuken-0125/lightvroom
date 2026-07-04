@@ -63,8 +63,11 @@ struct PS_INPUT
     float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD;
     float3 Tangent : TANGENT;
+    float3 Bitangent : BINORMAL;
     float3 Binormal : BINORMAL;
+    float2 Tex : TEXCOORD0;
     float4 LightSpacePos : TEXCOORD1;
+    float4 ShadowPos : TEXCOORD1;
 };
 
 // ==========================================
@@ -148,13 +151,33 @@ float CalculateShadow(float4 lightSpacePos, float3 N, float3 L)
 // ==========================================
 // ピクセルシェーダー
 // ==========================================
+
+Texture2D AlbedoTex : register(t0); // 基本色
+Texture2D NormalTex : register(t1); // バンプマップ（ノーマルマップ）
+Texture2D MRATex : register(t2); // Metallic, Roughness などをまとめたテクスチャ
+SamplerState Sampler : register(s0);
+
 float4 PSMain(PS_INPUT input) : SV_TARGET
 {
     float3 albedo = materialAlbedo.rgb;
     float roughness = materialRoughness;
     float metallic = materialMetallic;
     float emissive = materialEmissive;
+    
+    float4 albedoColor = AlbedoTex.Sample(Sampler, In.Tex);
+    float3 normalMap = NormalTex.Sample(Sampler, In.Tex).rgb;
+    float4 mra = MRATex.Sample(Sampler, In.Tex);
+    
+    float metallic = mra.r;
+    float roughness = mra.g;    
 
+    normalMap = (normalMap * 2.0f) - 1.0f;
+    
+    float3x3 TBN = float3x3(normalize(In.Tangent), normalize(In.Bitangent), normalize(In.Normal));
+    float3 N = normalize(mul(normalMap, TBN)); // ★これがPBRで使う最終的な法線
+
+    float3 V = normalize(CameraPosition.xyz - In.WorldPos); // 視線ベクトル
+    
     // 1. 太陽・月自体を描画する場合（光の計算を無視してそのまま光る）
     if (emissive > 0.0f)
     {

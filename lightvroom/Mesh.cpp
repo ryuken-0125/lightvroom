@@ -3,6 +3,28 @@
 Mesh::Mesh() : m_indexCount(0) {}
 Mesh::~Mesh() {}
 
+// Assimpの読み込みフラグ設定例
+unsigned int pFlags = aiProcess_Triangulate |
+aiProcess_ConvertToLeftHanded |
+aiProcess_CalcTangentSpace; // ★これを追加して読み込む
+
+// 頂点バッファを作成する際のデータ詰め込み処理
+for (unsigned int i = 0; i < mesh->mNumVertices; i++) {
+    Vertex v;
+    // (Position, Normal, TexCoordの取得処理は既存のまま)
+
+    // ★追加：Tangentの取得
+    if (mesh->HasTangentsAndBitangents()) {
+        v.Tangent.x = mesh->mTangents[i].x;
+        v.Tangent.y = mesh->mTangents[i].y;
+        v.Tangent.z = mesh->mTangents[i].z;
+    }
+    else {
+        v.Tangent = { 1.0f, 0.0f, 0.0f }; // 安全のためのフォールバック
+    }
+    vertices.push_back(v);
+}
+
 bool Mesh::CreateCube(ID3D11Device* device)
 {
     // 1. 立方体の頂点データ (位置, 法線, UV, 接ベクトル)
